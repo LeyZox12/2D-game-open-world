@@ -32,6 +32,7 @@ struct Planet
     vector<int> row;
     vector<vector<int>> terrain;
     Texture asTexture;
+    Image img;
     void init()
     {
         for(int i = 0; i < 1000; i++)
@@ -47,12 +48,19 @@ struct Planet
         {
             int y = 0;
             terrain[500 + y][i] = 1;
+            for(int j = 0; j < 1000 - 500 + y; j++)
+                terrain[500+y+j][i] = 1;
         }
+    }
+    void placeBlock(vec2 pos)
+    {
+        pos = vec2(floor(pos.x / (float)BLOCK_SIZE), floor(pos.y / (float)BLOCK_SIZE));
+        terrain[pos.y][pos.x] = 1;
+        img.setPixel(Vector2u(pos.x, pos.y), Color::White);
+        asTexture.loadFromImage(img);
     }
     Texture &getAsTex()
     {
-
-        Image img;
         img.resize(Vector2u(1000, 1000), Color::Black);
         for(int i = 0; i < 1000; i++)
         {
@@ -83,9 +91,9 @@ class Player
             head.setTexture(&spriteSheet);
             face.setTexture(&spriteSheet);
             body.setTexture(&spriteSheet);
-            head.setTextureRect(IntRect({32, 16}, {16, 16}));
-            face.setTextureRect(IntRect({48, 16}, {6, 3}));
-            body.setTextureRect(IntRect({32, 16}, {16, 16}));
+            head.setTextureRect(IntRect({32, 32}, {16, 16}));
+            face.setTextureRect(IntRect({48, 32}, {6, 3}));
+            body.setTextureRect(IntRect({32, 32}, {16, 16}));
             cout << "init";
             head.setSize(vec2(BLOCK_SIZE, BLOCK_SIZE));
             body.setSize(vec2(BLOCK_SIZE, BLOCK_SIZE * 2));
@@ -122,6 +130,11 @@ class Player
         RectangleShape getHead()
         {
             return head;
+        }
+
+        RectangleShape getFace()
+        {
+            return face;
         }
 
         RectangleShape getBody()
@@ -169,6 +182,9 @@ class Player
 
 struct GameManager
 {
+    //vec2[100] lights;
+    //int lightCount;
+
     int rectRectCollision(RectangleShape r1, RectangleShape r2)
     {
         vec2 p1 = r1.getPosition();
@@ -259,7 +275,8 @@ int main()
     {
         vec2 mousepos = window.mapPixelToCoords(Mouse::getPosition(window));
         float dt = deltaClock.restart().asSeconds();
-
+        if(f++%100 == 0)
+            window.setTitle("Alone... FPS:" + to_string(int(1.0f / dt)));
         while(optional<Event> e = window.pollEvent())
         {
             if(e->is<Event::Closed>()) window.close();
@@ -270,6 +287,8 @@ int main()
                 bg.setSize({size.x, size.y});
                 renderShader.setUniform("resolution", vec2(size.x, size.y));
             }
+            if(e->is<Event::MouseButtonPressed>() && e->getIf<Event::MouseButtonPressed>() -> button == Mouse::Button::Left)
+                testPlanet.placeBlock(mousepos);
             inputManager(e);
         }
         applyInputs();
@@ -279,10 +298,13 @@ int main()
         gm.applyCollision(player, testPlanet.terrain);
         bg.setPosition(window.mapPixelToCoords(vec2i(0,0)));
         renderShader.setUniform("topLeftPos", bg.getPosition());
-
+        renderShader.setUniform("lightPos", vec2(Mouse::getPosition(window).x, Mouse::getPosition(window).y));
+        renderShader.setUniform("playerPos", player.getBody().getPosition());
+        renderShader.setUniform("headPos", player.getHead().getPosition());
+        renderShader.setUniform("facePos", player.getFace().getPosition());
         window.clear();
         window.draw(bg, &renderShader);
-        player.display(window);
+        //player.display(window);
         window.display();
     }
     return 0;
