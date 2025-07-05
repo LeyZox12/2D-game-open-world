@@ -1,24 +1,99 @@
 #include <iostream>
 #include <SFML/Graphics.hpp>
 #include <math.h>
+#include "../../class/UIutils.h"
 #define pi 3.1415926
 #define rad pi/180
+#include <string>
+#include <vector>
+#include <random>
+#include <algorithm>
 
 using namespace std;
 using namespace sf;
 
 typedef Vector2f vec2;
+typedef Vector2i vec2i;
 
-class player
+RenderWindow window(VideoMode({512, 512}), "Alone...");
+
+sf::Clock deltaClock;
+
+const int BLOCK_SIZE = 100;
+const int PLAYER_SPEED = 2;
+RectangleShape bg({512, 512});
+Shader renderShader;
+View camera(FloatRect({0, 0}, {512.f, 512.f}));
+vector<Keyboard::Key> heldKeys;
+
+
+struct Planet
+{
+    vector<int> row;
+    vector<vector<int>> terrain;
+    Texture asTexture;
+    void init()
+    {
+        for(int i = 0; i < 1000; i++)
+            row.push_back(0);
+        for(int i = 0; i < 1000; i++)
+            terrain.push_back(row);
+    }
+    void generateWorld(int seed)
+    {
+        srand(seed);
+        int randOffset = rand();
+        for(int i = 0; i < 1000; i++)
+        {
+            int y = 0;
+            terrain[500 + y][i] = 1;
+        }
+    }
+    Texture &getAsTex()
+    {
+
+        Image img;
+        img.resize(Vector2u(1000, 1000), Color::Black);
+        for(int i = 0; i < 1000; i++)
+        {
+            for(int j = 0; j < 1000; j++)
+            {
+                img.setPixel(Vector2u(j, i), terrain[i][j] == 0 ? Color::Black : Color::White);
+            }
+        }
+
+        asTexture.loadFromImage(img);
+
+        return asTexture;
+    }
+};
+
+
+
+class Player
 {
     public:
         player()
         {
 
         }
-        player(vec2 pos)
+        void init()
         {
-            this -> pos = pos;
+            spriteSheet.loadFromFile("res/spriteSheet.png");
+            head.setTexture(&spriteSheet);
+            face.setTexture(&spriteSheet);
+            body.setTexture(&spriteSheet);
+            head.setTextureRect(IntRect({32, 16}, {16, 16}));
+            face.setTextureRect(IntRect({48, 16}, {6, 3}));
+            body.setTextureRect(IntRect({32, 16}, {16, 16}));
+            cout << "init";
+            head.setSize(vec2(BLOCK_SIZE, BLOCK_SIZE));
+            body.setSize(vec2(BLOCK_SIZE, BLOCK_SIZE * 2));
+            face.setSize(vec2(BLOCK_SIZE * 0.375, BLOCK_SIZE * 0.1875));
+        }
+        void setWorldPos(vec2 pos)
+        {
+            this -> pos = pos * (float)BLOCK_SIZE;
         }
         void setPosition(vec2 pos)
         {
@@ -36,133 +111,211 @@ class player
         {
             this -> vel = vel;
         }
-        void updatePos()
+        void addVel(vec2 vel)
         {
-            this -> pos += vel;
+            this -> vel += vel;
         }
-        void display(RenderWindow& window, vec2 mousepos, Texture spriteSheet)
+        vec2 getVel()
         {
+            return vel;
+        }
+        RectangleShape getHead()
+        {
+            return head;
+        }
 
-            body.setTexture(&spriteSheet);
-            head.setTexture(&spriteSheet);
-            face.setTexture(&spriteSheet);
-            body.setTextureRect({82, 0, 16, 16});
-            head.setTextureRect({82, 0, 16, 16});
-            face.setTextureRect({98, 0, 6, 3});
-            face.setSize(vec2(30, 15));
-            head.setSize(vec2(60, 60));
-            body.setSize(vec2(60, 120));
+        RectangleShape getBody()
+        {
+            return body;
+        }
+
+        vec2 getWorldPos()
+        {
+            return vec2(floor(pos.x / (float)BLOCK_SIZE), floor(pos.y / (float)BLOCK_SIZE));
+        }
+        void update(float dt, vec2 mousepos)
+        {
+            pos += vel;
+            addVel(vec2(0, 9.8 * dt));
             body.setPosition(pos);
-            head.move(vec2((body.getPosition().x - head.getPosition().x) / 20,
-                           (body.getPosition().y - head.getPosition().y - head.getSize().y * 1.2) / 20));
+            head.move(vec2((body.getPosition().x - head.getPosition().x) / 10,
+                           (body.getPosition().y - head.getPosition().y - head.getSize().y * 1.2) / 10));
             face.setPosition(head.getPosition() + vec2(head.getSize().x / 2 - face.getSize().x / 2,
                                                        head.getSize().y / 2 - face.getSize().y / 2));
             vec2 diff = mousepos - face.getPosition();
             float dist = sqrt(diff.x * diff.x + diff.y * diff.y);
             float mult = dist * 0.01 > 8 ? 8 : dist * 0.01;
             face.move(vec2(diff.x / dist * mult , diff.y / dist * mult));
+        }
+        void display(RenderWindow& window)
+        {
             window.draw(body);
             window.draw(head);
             window.draw(face);
         }
-    private:
-        vec2 pos;
-        vec2 vel;
-        vector<int> inventory;
-        vector<string> voiceLines;
-        RectangleShape body;
-        RectangleShape head;
-        RectangleShape face;
+
+        private:
+            Texture spriteSheet;
+            bool grounded;
+            int inventoryIndex = 0;
+            vec2 pos;
+            vec2 vel;
+            vector<int> inventory;
+            vector<string> voiceLines;
+            RectangleShape body;
+            RectangleShape head;
+            RectangleShape face;
 };
 
-
-vector<vector<int>> generateWorld(int worldSize)
+struct GameManager
 {
-    vector<int> blocksY;
-
-    for(int i = 0; i < worldSize; i++)
+    int rectRectCollision(RectangleShape r1, RectangleShape r2)
     {
-        blocksY.push_back(worldSize / 2 + floor(sin(2 * i * rad) + sin(pi * i * rad) * 2));
-        //blocksY.push_back(worldSize / 2);
-    }
-    cout << "done";
-    vector<vector<int>> world;
-    vector<int> row;
-    for(int i = 0; i < worldSize; i++)
-        row.push_back(0);
-    for(int i = 0; i < worldSize; i++)
-        world.push_back(row);
-    int i = 0;
-    for(auto& y : blocksY)
-    {
-        world[y][i] = 1;
-        i++;
-    }
-    return world;
-}
-
-RenderWindow window(VideoMode::getDesktopMode(), "...", Style::Fullscreen);
-Event e;
-View camera(vec2(0, 0), vec2(1920, 1080));
-vector<vector<int>> world;
-Texture spriteSheet;
-int worldSize = 100;
-int blockSizeDisplay = 60;
-player p(vec2(worldSize * blockSizeDisplay / 2, worldSize * blockSizeDisplay / 2));
-vec2 mousepos;
-
-void start()
-{
-    spriteSheet.loadFromFile("res/spriteSheet.png");
-    world = generateWorld(worldSize);
-}
-
-void displayWorld()
-{
-    RectangleShape block;
-    block.setTexture(&spriteSheet);
-    block.setSize(vec2(blockSizeDisplay, blockSizeDisplay));
-    int chunkPosX = floor(p.getPosition().x / blockSizeDisplay);
-    int chunkPosY = floor(p.getPosition().y / blockSizeDisplay);
-
-    for(int i = -2; i < 2; i++)
-    {
-        for(int y = 0; y < 50; y++)
+        vec2 p1 = r1.getPosition();
+        vec2 s1 = r1.getSize();
+        vec2 p2 = r2.getPosition();
+        vec2 s2 = r2.getSize();
+        if(p1.x + s1.x > p2.x && p1.x < p2.x + s2.x && p1.y + s1.y > p2.y && p1.y < p2.y + s2.y)
         {
-            for(int x = 0; x < blockSizeDisplay; x++)
+            vector<float> distances =
             {
-                if(world[chunkPosY + y][(chunkPosX + i * 20) + x] == 1)
+                abs(p1.x + s1.x - p2.x), //Left
+                abs(p2.x + s2.x - p1.x), //Right
+                abs(p1.y + s1.y - p2.y), //Up
+                abs(p2.y + s2.y - p1.y) //Down
+            };
+            auto it = min_element(distances.begin(), distances.end());
+            int index = distance(distances.begin(), it);
+            return index;
+        }
+        return -1;
+    }
+
+
+    void applyCollision(Player& player, vector<vector<int>> planetTerrain)
+    {
+        vec2 r1 = player.getBody().getPosition();
+        vec2 s1 = player.getBody().getSize();
+        vec2 worldPos = player.getWorldPos();
+        RectangleShape block;
+        block.setSize({BLOCK_SIZE, BLOCK_SIZE});
+        for(int i = -8; i < 8; i++)
+        {
+            for(int j = -8; j < 8; j++)
+            {
+                vec2 check = vec2(worldPos.x + i, worldPos.y + j);
+                if(check.x < planetTerrain.size() && check.x >= 0 && check.y < planetTerrain.size() && check.y >= 0 &&
+                   planetTerrain[check.y][check.x] != 0)
                 {
-                    block.setTextureRect({112, 0, 16, 16});
-                    block.setPosition((chunkPosX + i * 20) * blockSizeDisplay + x * blockSizeDisplay, (chunkPosY) * blockSizeDisplay + y * blockSizeDisplay);
-                    window.draw(block);
+                    block.setPosition({check.x * BLOCK_SIZE, check.y * BLOCK_SIZE});
+
+                    int edge = rectRectCollision(player.getBody(), block);
+                    switch(edge)
+                    {
+                        case(2):
+                            player.setVel(vec2(player.getVel().x * 0.95f, 0));
+                            player.setPosition(vec2(player.getPosition().x, player.getWorldPos().y * BLOCK_SIZE));
+                        break;
+                    }
+
                 }
             }
         }
     }
+};
+
+Player player = Player();
+GameManager gm;
+Planet testPlanet;
+Texture spriteSheet;
+
+void inputManager(optional<Event> e);
+void applyInputs();
+
+void start()
+{
+    window.setKeyRepeatEnabled(false);
+    window.setFramerateLimit(60);
+    player.init();
+    player.setWorldPos(vec2(500, 450));
+    renderShader.loadFromFile("res/Shaders/OnPlanetRender.frag", Shader::Type::Fragment);
+    renderShader.setUniform("resolution", vec2(512, 512));
+    testPlanet.init();
+    testPlanet.generateWorld(0);
+    renderShader.setUniform("BLOCK_SIZE", (float)BLOCK_SIZE);
+    renderShader.setUniform("planet", testPlanet.getAsTex());
+    spriteSheet.loadFromFile("res/spriteSheet.png");
+    renderShader.setUniform("spriteSheet", spriteSheet);
+    renderShader.setUniform("spriteSheetRes", vec2(spriteSheet.getSize().x, spriteSheet.getSize().y));
+    renderShader.setUniform("spriteSheetUnit", vec2(16, 16));
+    renderShader.setUniform("WORLD_SIZE", (float)1000);
 }
 
 int main()
 {
+    static int f = 0;
     start();
     while(window.isOpen())
     {
-        while(window.pollEvent(e))
-        {
-            if(e.type == Event::Closed)
-                window.close();
-        }
-        mousepos = window.mapPixelToCoords(Mouse::getPosition(window));
-        window.clear(Color::Black);
+        vec2 mousepos = window.mapPixelToCoords(Mouse::getPosition(window));
+        float dt = deltaClock.restart().asSeconds();
 
-        camera.move((p.getPosition().x - camera.getCenter().x) / 10,
-                    (p.getPosition().y - camera.getCenter().y) / 10 );
-        //camera.setCenter(p.getPosition());
+        while(optional<Event> e = window.pollEvent())
+        {
+            if(e->is<Event::Closed>()) window.close();
+            if(e->is<Event::Resized>())
+            {
+                Vector2u size = e->getIf<Event::Resized>() -> size;
+                camera.setSize({size.x,size.y});
+                bg.setSize({size.x, size.y});
+                renderShader.setUniform("resolution", vec2(size.x, size.y));
+            }
+            inputManager(e);
+        }
+        applyInputs();
+        camera.setCenter(player.getHead().getPosition());
         window.setView(camera);
-        displayWorld();
-        p.display(window, mousepos, spriteSheet);
+        player.update(dt, mousepos);
+        gm.applyCollision(player, testPlanet.terrain);
+        bg.setPosition(window.mapPixelToCoords(vec2i(0,0)));
+        renderShader.setUniform("topLeftPos", bg.getPosition());
+
+        window.clear();
+        window.draw(bg, &renderShader);
+        player.display(window);
         window.display();
     }
-
     return 0;
+}
+
+void inputManager(optional<Event> e)
+{
+    if(e->is<Event::KeyPressed>())
+    {
+        Keyboard::Key key = e->getIf<Event::KeyPressed>() -> code;
+        if(count(heldKeys.begin(), heldKeys.end(), key) == 0) heldKeys.push_back(key);
+    }
+    if(e->is<Event::KeyReleased>())
+    {
+        Keyboard::Key key = e->getIf<Event::KeyReleased>() -> code;
+        if(count(heldKeys.begin(), heldKeys.end(), key) == 1)
+            heldKeys.erase(find(heldKeys.begin(), heldKeys.end(), key));
+    }
+}
+
+void applyInputs()
+{
+    for(auto& key : heldKeys)
+    {
+        switch(key)
+        {
+            case(Keyboard::Key::Q):
+                player.addVel(vec2(-PLAYER_SPEED, 0));
+            break;
+            case(Keyboard::Key::D):
+                player.addVel(vec2(PLAYER_SPEED, 0));
+            break;
+        }
+
+    }
 }
