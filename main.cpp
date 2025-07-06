@@ -32,9 +32,11 @@ struct Planet
     vector<int> row;
     vector<vector<int>> terrain;
     Texture asTexture;
-    Image img;
+    vector<uint8_t> data;
     void init()
     {
+        asTexture = Texture({1000, 1000});
+        data = vector<uint8_t>(1000 * 1000 * 4);
         for(int i = 0; i < 1000; i++)
             row.push_back(0);
         for(int i = 0; i < 1000; i++)
@@ -49,29 +51,42 @@ struct Planet
             int y = 0;
             terrain[500 + y][i] = 1;
             for(int j = 0; j < 1000 - 500 + y; j++)
+            {
                 terrain[500+y+j][i] = 1;
+                data[4000 * 500 + j + i * 4] = 255;
+                data[4000 * 500 + j + i * 4 + 1] = 255;
+                data[4000 * 500 + j + i * 4 + 2] = 255;
+                data[4000 * 500 + j + i * 4 + 3] = 255;
+
+            }
         }
+        asTexture.update(data.data());
     }
     void placeBlock(vec2 pos)
     {
         pos = vec2(floor(pos.x / (float)BLOCK_SIZE), floor(pos.y / (float)BLOCK_SIZE));
         terrain[pos.y][pos.x] = 1;
-        img.setPixel(Vector2u(pos.x, pos.y), Color::White);
-        asTexture.loadFromImage(img);
+        data[4000 * pos.y + pos.x * 4] = 255;
+        data[4000 * pos.y + pos.x * 4 + 1] = 255;
+        data[4000 * pos.y + pos.x * 4 + 2] = 255;
+        data[4000 * pos.y + pos.x * 4 + 3] = 255;
+        asTexture.update(data.data());
     }
+
+    void removeBlock(vec2 pos)
+    {
+        pos = vec2(floor(pos.x / (float)BLOCK_SIZE), floor(pos.y / (float)BLOCK_SIZE));
+        terrain[pos.y][pos.x] = 1;
+        data[4000 * pos.y + pos.x * 4] = 0;
+        data[4000 * pos.y + pos.x * 4 + 1] = 0;
+        data[4000 * pos.y + pos.x * 4 + 2] = 0;
+        data[4000 * pos.y + pos.x * 4 + 3] = 0;
+        asTexture.update(data.data());
+    }
+
     Texture &getAsTex()
     {
-        img.resize(Vector2u(1000, 1000), Color::Black);
-        for(int i = 0; i < 1000; i++)
-        {
-            for(int j = 0; j < 1000; j++)
-            {
-                img.setPixel(Vector2u(j, i), terrain[i][j] == 0 ? Color::Black : Color::White);
-            }
-        }
-
-        asTexture.loadFromImage(img);
-
+        asTexture.update(data.data());
         return asTexture;
     }
 };
@@ -183,8 +198,8 @@ class Player
 struct GameManager
 {
     //vec2[100] lights;
-    //int lightCount;
-
+    int lightCount;
+    ///TODO DYNAMICALLY ASSIGN COLOR AND POSITIONS TO LIT OBJECTS
     int rectRectCollision(RectangleShape r1, RectangleShape r2)
     {
         vec2 p1 = r1.getPosition();
@@ -289,6 +304,8 @@ int main()
             }
             if(e->is<Event::MouseButtonPressed>() && e->getIf<Event::MouseButtonPressed>() -> button == Mouse::Button::Left)
                 testPlanet.placeBlock(mousepos);
+            if(e->is<Event::MouseButtonPressed>() && e->getIf<Event::MouseButtonPressed>() -> button == Mouse::Button::Right)
+                testPlanet.removeBlock(mousepos);
             inputManager(e);
         }
         applyInputs();
@@ -298,13 +315,16 @@ int main()
         gm.applyCollision(player, testPlanet.terrain);
         bg.setPosition(window.mapPixelToCoords(vec2i(0,0)));
         renderShader.setUniform("topLeftPos", bg.getPosition());
-        renderShader.setUniform("lightPos", vec2(Mouse::getPosition(window).x, Mouse::getPosition(window).y));
+        vec2 lights[100];
+        lights[0] = vec2(50005.3, 49820.5);
+        renderShader.setUniformArray("lightPos", lights, 100);
+        renderShader.setUniform("lightCount", 1);
+        renderShader.setUniform("mousepos", mousepos);
         renderShader.setUniform("playerPos", player.getBody().getPosition());
         renderShader.setUniform("headPos", player.getHead().getPosition());
         renderShader.setUniform("facePos", player.getFace().getPosition());
         window.clear();
         window.draw(bg, &renderShader);
-        //player.display(window);
         window.display();
     }
     return 0;
