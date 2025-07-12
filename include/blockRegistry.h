@@ -7,7 +7,7 @@
 #include <functional>
 #include <any>
 #include <BlockContext.hpp>
-#include <Block.h>
+#include <Block.hpp>
 
 using namespace sf;
 using namespace std;
@@ -17,8 +17,7 @@ class blockRegistry
 {
     public:
         blockRegistry();
-        void registerBlock(IntRect spriteRect, function<vector<any>(BlockContext ctx)> OnInteract, Vector3i mapColor, bool isLightSource);
-    protected:
+        void registerBlock(Block block);
 
     private:
         vector<Block> blocks;

@@ -15,6 +15,8 @@ uniform float BLOCK_SIZE;
 uniform float WORLD_SIZE;
 uniform vec2 lightPos[100];
 uniform int lightCount;
+uniform vec3 lightColors[100];
+
 
 out vec4 fragColor;
 
@@ -72,7 +74,7 @@ float DDA(vec2 origin, vec2 endPos, float maxdist, float power)
             side = steps.x > 0.0 ? 0.0 : 1.0;
             distTotal = dist.x - delta.x;
 
-            if(texture(planet, vec2((checkX)/WORLD_SIZE, (checkY)/WORLD_SIZE)).x == 1.0)
+            if(texture(planet, vec2((checkX)/WORLD_SIZE, (checkY)/WORLD_SIZE)).x != 0.0)
             {
                 wallFound = 1;
                 vec2 hit = origin + direction * distTotal;
@@ -87,7 +89,7 @@ float DDA(vec2 origin, vec2 endPos, float maxdist, float power)
             side = steps.y > 0.0 ? 2.0 : 3.0;
             distTotal = dist.y - delta.y;
             if(wallFound == -1) wallFound = 1;
-            if(texture(planet, vec2((checkX)/WORLD_SIZE, (checkY)/WORLD_SIZE)).x == 1.0)
+            if(texture(planet, vec2((checkX)/WORLD_SIZE, (checkY)/WORLD_SIZE)).x != 0.0)
             {
                 wallFound = 1;
                 vec2 hit = origin + direction * distTotal;
@@ -119,14 +121,20 @@ void main()
 {
     float c = 1.0;
     vec2 uv = vec2(gl_FragCoord.x, resolution.y - gl_FragCoord.y);
-    vec4 ddaR = vec4(0.9647, 0.349, 0.0157, 0.0);
-    
+    vec4 ddaR = vec4(0.0);
     for(int i = 0; i< lightCount; i++)
     {
+        vec3 col = lightColors[i] / 255.0; 
         float l = DDA(lightPos[i], uv + topLeftPos.xy, 20.0, 5.0);
-        ddaR.w += l;
+        l = clamp(l, 0.0, 1.0);
+        ddaR.x = mix(ddaR.x, col.x, l);
+        ddaR.y = mix(ddaR.y, col.y, l);
+        ddaR.z = mix(ddaR.z, col.z, l);
+
+        ddaR.w = 1.0;
+
     }
-    ddaR.w = clamp(ddaR.w, 0.0, 1.0);
-    fragColor = vec4(1.0, 1.0, 1.0, ddaR.w);
-    //fragColor = vec4(gl_FragCoord.x / resolution.x, gl_FragCoord.y / resolution.y, 1.0, 1.0);
+    ddaR.w = ddaR.w;
+    fragColor = ddaR;
+
 }

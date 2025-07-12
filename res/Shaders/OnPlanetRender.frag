@@ -18,6 +18,9 @@ uniform vec2 playerPos;
 uniform vec2 headPos;
 uniform vec2 facePos;
 uniform vec2 lightPos[100];
+uniform vec2 waterDrops[1000];
+uniform float waterParticleRadius;
+uniform int waterCount;
 uniform int lightCount;
 uniform vec2 mousepos;
 out vec4 fragColor;
@@ -39,46 +42,46 @@ void getNeighbours(vec2 pos, out int n[10])
 {
     
     float pixel = 1.0 / WORLD_SIZE;
-    if(texture(planet, vec2(pos.x+pixel,pos.y)).x == 1.0) // right
+    if(texture(planet, vec2(pos.x+pixel,pos.y)).x == 1.0 / 255.0) // right
     {
         n[0] = 1;
         n[8] += 1;
         n[9] += 1;
     }
-    if(texture(planet, vec2(pos.x+pixel,pos.y-pixel)).x == 1.0) // top right
+    if(texture(planet, vec2(pos.x+pixel,pos.y-pixel)).x == 1.0 / 255.0) // top right
     {
         n[1] = 1;
         n[8] += 1;
     }
-    if(texture(planet, vec2(pos.x,pos.y-pixel)).x == 1.0) // top
+    if(texture(planet, vec2(pos.x,pos.y-pixel)).x == 1.0 / 255.0) // top
     {
         n[2] = 1;
         n[8] += 1;
         n[9] += 1;
     }
-    if(texture(planet, vec2(pos.x-pixel,pos.y-pixel)).x == 1.0) // top left
+    if(texture(planet, vec2(pos.x-pixel,pos.y-pixel)).x == 1.0 / 255.0) // top left
     {
         n[3] = 1;
         n[8] += 1;
     }
-    if(texture(planet, vec2(pos.x-pixel,pos.y)).x == 1.0) // left
+    if(texture(planet, vec2(pos.x-pixel,pos.y)).x == 1.0 / 255.0) // left
     {
         n[4] = 1;
         n[8] += 1;
         n[9] += 1;
     }
-    if(texture(planet, vec2(pos.x-pixel,pos.y+pixel)).x == 1.0) // bottom left
+    if(texture(planet, vec2(pos.x-pixel,pos.y+pixel)).x == 1.0 / 255.0) // bottom left
     {
         n[5] = 1;
         n[8] += 1;
     }
-    if(texture(planet, vec2(pos.x,pos.y+pixel)).x == 1.0) // bottom
+    if(texture(planet, vec2(pos.x,pos.y+pixel)).x == 1.0 / 255.0) // bottom
     {
         n[6] = 1;
         n[8] += 1;
         n[9] += 1;
     }
-    if(texture(planet, vec2(pos.x+pixel,pos.y+pixel)).x == 1.0) // bottom right
+    if(texture(planet, vec2(pos.x+pixel,pos.y+pixel)).x == 1.0 / 255.0) // bottom right
     {
         n[7] = 1;
         n[8] += 1;
@@ -145,7 +148,7 @@ float DDA(vec2 origin, vec2 endPos, float maxdist, float power)
             side = steps.x > 0.0 ? 0.0 : 1.0;
             distTotal = dist.x - delta.x;
 
-            if(texture(planet, vec2((checkX)/WORLD_SIZE, (checkY)/WORLD_SIZE)).x == 1.0)
+            if(texture(planet, vec2((checkX)/WORLD_SIZE, (checkY)/WORLD_SIZE)).x != 0.0)
             {
                 wallFound = 1;
                 vec2 hit = origin + direction * distTotal;
@@ -160,7 +163,7 @@ float DDA(vec2 origin, vec2 endPos, float maxdist, float power)
             side = steps.y > 0.0 ? 2.0 : 3.0;
             distTotal = dist.y - delta.y;
             if(wallFound == -1) wallFound = 1;
-            if(texture(planet, vec2((checkX)/WORLD_SIZE, (checkY)/WORLD_SIZE)).x == 1.0)
+            if(texture(planet, vec2((checkX)/WORLD_SIZE, (checkY)/WORLD_SIZE)).x != 0.0)
             {
                 wallFound = 1;
                 vec2 hit = origin + direction * distTotal;
@@ -193,6 +196,11 @@ vec4 addColors(vec4 c1, vec4 c2)
     return c1 + c2 * c2.w;
 }
 
+float metaCircle(vec2 pos, vec2 uv, float radius)
+{
+    return radius / length(pos - uv);
+}
+
 
 void main()
 {
@@ -217,7 +225,7 @@ void main()
     c += getRectangle(fp + topLeftPos.xy, facePos, vec2(BLOCK_SIZE, BLOCK_SIZE), vec2(3, 2));
     c = addColors(c, ddaR);
 
-    if(texture(planet, vec2(index.x,index.y)).x == 1.0)
+    if(texture(planet, vec2(index.x,index.y)).x == 1.0 / 255.0)
     {
         int n[10];
         for(int i = 0; i < 10; i++)n[i] = 0;
@@ -264,6 +272,18 @@ void main()
     }
     float b = sdBox(fp + topLeftPos - floor((mousepos) / BLOCK_SIZE)* BLOCK_SIZE  - vec2(BLOCK_SIZE * 0.5) , vec2(50.0));
     c = 1.0 - smoothstep(b, 5.0, 6.0) == 1.0 ? vec4(1.0) : c ;
+    
+    //----------------------------WATER DISPLAY----------------------------------
+    float circle = 0.0;
+    for(int i = 0; i < waterCount; i++)
+    {
+        
+        circle += metaCircle(waterDrops[i], fp + topLeftPos, 30.0);
+        circle = min(circle, 11.0);
+        //if(length(waterDrops[i] - (fp + topLeftPos)) < 10.0) c = vec4(0.0314, 0.0, 1.0, 1.0);
+    }
+    c = circle * vec4(0.0314, 0.0, 1.0, 1.0);
+    if(circle > 10.0) c = vec4(0.0314, 0.0, 1.0, 1.0);
     fragColor = texture(planet, uv);
     fragColor = vec4(c);
 }
